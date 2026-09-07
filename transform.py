@@ -16,7 +16,7 @@ ORIGIN = 'https://ckservice.be'
 
 PAGES = {  # file -> clean path
     'index.html': '/', 'inloopdouche.html': '/inloopdouche/', 'douchecabine.html': '/douchecabine/',
-    'douche-plaatsen.html': '/douche-plaatsen/', 'seniorendouches.html': '/seniorendouches/', 'veilige-douche.html': '/veilige-douche/', 'wandpanelen.html': '/badkamer-renovatie-wandpanelen/',
+    'douche-plaatsen.html': '/douche-plaatsen/', 'seniorendouches.html': '/seniorendouches/', 'veilige-douche.html': '/veilige-douche/', 'toiletten.html': '/onze-toiletten/', 'wandpanelen.html': '/badkamer-renovatie-wandpanelen/',
     'premie.html': '/premie/', 'badkamer-renovatie-geel.html': '/badkamer-renovatie-geel/',
     'projecten.html': '/onze-projecten/', 'over-ons.html': '/over-ons/', 'faq.html': '/faq/',
     'contact.html': '/contact/', 'privacy-verklaring.html': '/privacy-verklaring/',
