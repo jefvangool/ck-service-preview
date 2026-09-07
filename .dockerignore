@@ -3,3 +3,4 @@ transform.py
 blog.html
 blog-post.html
 .dockerignore
+build_pages_2.py
