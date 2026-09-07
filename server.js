@@ -270,13 +270,15 @@ const server = http.createServer(async (req, res) => {
   let p = u.pathname.replace(/\/{2,}/g, '/');
 
   if (host === `www.${SITE_DOMAIN}`) return redirect(res, ORIGIN + p + u.search, 301);
+  // Preview/any non-production host: never indexable. Only the production domain is index,follow.
+  const isProd = host === SITE_DOMAIN;
 
   if (req.method === 'POST' && p === '/api/lead') return handleLead(req, res, ip);
   if (req.method !== 'GET' && req.method !== 'HEAD') { securityHeaders(res); res.writeHead(405); return res.end(); }
 
   if (p === '/health') { securityHeaders(res); res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('ok'); }
   if (p === '/sitemap.xml') { securityHeaders(res); res.writeHead(200, { 'Content-Type': MIME['.xml'], 'Cache-Control': 'no-cache' }); return res.end(sitemap()); }
-  if (p === '/robots.txt') { securityHeaders(res); res.writeHead(200, { 'Content-Type': MIME['.txt'] }); return res.end(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /bedankt/\nSitemap: ${ORIGIN}/sitemap.xml\n`); }
+  if (p === '/robots.txt') { securityHeaders(res); res.writeHead(200, { 'Content-Type': MIME['.txt'] }); return res.end(isProd ? `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /bedankt/\nSitemap: ${ORIGIN}/sitemap.xml\n` : `User-agent: *\nDisallow: /\n`); }
 
   // .html -> clean URL
   if (/\.html$/.test(p)) {
@@ -290,7 +292,7 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/faq/') && p !== '/faq/') return redirect(res, '/faq/', 301);
   // pages: enforce trailing slash
   if (PAGES[key] && !p.endsWith('/')) return redirect(res, key + u.search, 301);
-  if (PAGES[p]) return sendFile(res, PAGES[p], 200, NOINDEX.has(p) ? { 'X-Robots-Tag': 'noindex' } : undefined);
+  if (PAGES[p]) return sendFile(res, PAGES[p], 200, (!isProd || NOINDEX.has(p)) ? { 'X-Robots-Tag': 'noindex, nofollow' } : undefined);
 
   // static assets (css/img/js/docs, favicon)
   if (/^\/(css|img|js|docs)\//.test(p) || /^\/(favicon\.ico|favicon-\d+\.jpg|apple-touch-icon\.png)$/.test(p)) {
