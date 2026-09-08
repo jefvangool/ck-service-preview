@@ -65,37 +65,22 @@ const REDIRECTS = {
   '/kocoon/': '/douchecabine/',
   '/vervang-je-bad-door-een-veilige-kinemagic-douchecabine/': '/veilige-douche/',
   '/voor-en-na/': '/onze-projecten/',
-  '/projecten/': '/onze-projecten/',
+  '/projecten/page/2/': '/projecten/',
+  '/projecten/page/3/': '/projecten/',
+  '/projecten/page/4/': '/projecten/',
   '/blog/': '/',
   '/blog-post/': '/premie/',
-  '/faq/krijg-je-een-aanpassingspremie-voor-je-badkamer-van-ck-service/': '/premie/',
-  '/faq/jouw-badkamer-renovatie-welke-prijs-betaal-je-bij-ck-service/': '/premie/',
-  '/faq/zelf-inloopdouche-plaatsen/': '/inloopdouche/',
-  '/faq/een-bad-vervangen-door-een-douche-hoe-gaat-dat-in-zijn-werk/': '/veilige-douche/',
-  '/faq/kan-ck-service-mijn-douche-aanpassen-voor-senioren/': '/seniorendouches/',
-  '/faq/vanaf-welke-leeftijd-heb-ik-een-senioren-badkamer-nodig/': '/seniorendouches/',
-  '/faq/kan-ckservice-een-douchestoel-plaatsen/': '/seniorendouches/',
-  '/faq/alleen-douche-plaatsen/': '/douche-plaatsen/',
-  '/faq/nadelen-badkamer-renovatie-zonder-breken/': '/badkamer-renovatie-wandpanelen/',
-  '/faq/wat-zijn-de-voordelen-van-een-gesloten-douchecabine/': '/douchecabine/',
-  '/faq/wat-zijn-de-voordelen-van-een-lage-douchebak/': '/douchecabine/',
-  '/faq/in-welke-regios-is-ck-service-actief/': '/badkamer-renovatie-geel/',
-  '/faq/hoe-verloopt-de-renovatie-van-je-badkamer-bij-ckservice/': '/faq/',
-  '/faq/hoelang-duurt-badkamer-renovatie/': '/faq/',
-  '/faq/heeft-ck-service-showroom-badkamers/': '/faq/',
-  '/faq/kan-ck-service-mijn-badkamer-inrichten/': '/faq/',
-  '/faq/kan-ck-service-mijn-kleine-badkamer-renoveren/': '/faq/',
-  '/faq/wat-zijn-de-voordelen-van-een-badkamerrenovatie-door-ck-service/': '/faq/',
-  '/faq/een-wasmachine-in-de-badkamer-plaatsen-mag-dat/': '/faq/',
-  '/faq/hangtoilet-plaatsen/': '/onze-toiletten/',
-  '/faq/wat-is-japans-toilet/': '/onze-toiletten/',
-  '/faq/wat-zijn-de-voordelen-van-een-douchetoilet/': '/onze-toiletten/',
   '/wp-content/uploads/2024/02/CK-Service-ROCKO_TILES.pdf': '/docs/CK-Service-ROCKO_TILES.pdf',
   '/wp-content/uploads/2024/03/CK-Service-Wandpanelen-1.pdf': '/docs/CK-Service-Wandpanelen.pdf',
+  '/wp-content/uploads/2020/05/algemene-aannemingsvoorwaarden-CK-Service.pdf': '/docs/algemene-aannemingsvoorwaarden-CK-Service.pdf',
   '/page-sitemap.xml': '/sitemap.xml',
   '/sitemap_index.xml': '/sitemap.xml',
   '/wp-sitemap.xml': '/sitemap.xml',
 };
+// The 22 /faq/<slug>/ pages and /projecten/ (realisation index) are now real
+// pages (see faq/*.html, projecten/*.html, projecten/index.html) — no longer
+// redirected. Directory-based routing for both lives further down.
+
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
@@ -137,10 +122,22 @@ function redirect(res, location, status) {
   res.end();
 }
 
+// Directory-based pages (ported 1:1 from the live site): read once at
+// startup, same as PAGES above but keyed by slug instead of a fixed map.
+function listDirPages(dir, prefix) {
+  try {
+    return fs.readdirSync(path.join(ROOT, dir))
+      .filter(f => f.endsWith('.html') && f !== 'index.html')
+      .map(f => `${prefix}${f.slice(0, -5)}/`);
+  } catch (e) { return []; }
+}
+const FAQ_PAGES = listDirPages('faq', '/faq/');
+const PROJECT_PAGES = listDirPages('projecten', '/projecten/');
+
 function sitemap() {
   const today = new Date().toISOString().slice(0, 10);
-  const urls = Object.keys(PAGES).filter(p => !NOINDEX.has(p))
-    .map(p => `  <url><loc>${ORIGIN}${p}</loc><lastmod>${today}</lastmod></url>`).join('\n');
+  const all = [...Object.keys(PAGES).filter(p => !NOINDEX.has(p)), '/projecten/', ...FAQ_PAGES, ...PROJECT_PAGES];
+  const urls = all.map(p => `  <url><loc>${ORIGIN}${p}</loc><lastmod>${today}</lastmod></url>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
@@ -289,7 +286,32 @@ const server = http.createServer(async (req, res) => {
   const key = p.endsWith('/') ? p : p + '/';
   if (REDIRECTS[p] !== undefined) return redirect(res, REDIRECTS[p] + u.search, 301);
   if (REDIRECTS[key] !== undefined) return redirect(res, REDIRECTS[key] + u.search, 301);
-  if (p.startsWith('/faq/') && p !== '/faq/') return redirect(res, '/faq/', 301);
+  const noindexExtra = !isProd ? { 'X-Robots-Tag': 'noindex, nofollow' } : undefined;
+  // /projecten/ — realisation index + one real page per slug (projecten/*.html)
+  if (p === '/projecten' || p === '/projecten/') {
+    if (!p.endsWith('/')) return redirect(res, '/projecten/' + u.search, 301);
+    return sendFile(res, 'projecten/index.html', 200, noindexExtra);
+  }
+  if (p.startsWith('/projecten/')) {
+    const m = key.match(/^\/projecten\/([a-z0-9-]+)\/$/);
+    const file = m && `projecten/${m[1]}.html`;
+    if (file && fs.existsSync(path.join(ROOT, file))) {
+      if (!p.endsWith('/')) return redirect(res, key + u.search, 301);
+      return sendFile(res, file, 200, noindexExtra);
+    }
+    // unknown slug: fall through to static/404 below
+  }
+  // /faq/ — hub (PAGES) + one real page per slug (faq/*.html); anything else
+  // under /faq/ (a stale or unknown slug) redirects to the hub, as before.
+  if (p.startsWith('/faq/') && p !== '/faq/') {
+    const m = key.match(/^\/faq\/([a-z0-9-]+)\/$/);
+    const file = m && `faq/${m[1]}.html`;
+    if (file && fs.existsSync(path.join(ROOT, file))) {
+      if (!p.endsWith('/')) return redirect(res, key + u.search, 301);
+      return sendFile(res, file, 200, noindexExtra);
+    }
+    return redirect(res, '/faq/', 301);
+  }
   // pages: enforce trailing slash
   if (PAGES[key] && !p.endsWith('/')) return redirect(res, key + u.search, 301);
   if (PAGES[p]) return sendFile(res, PAGES[p], 200, (!isProd || NOINDEX.has(p)) ? { 'X-Robots-Tag': 'noindex, nofollow' } : undefined);
